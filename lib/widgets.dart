@@ -48,6 +48,7 @@ class Scratcher extends StatefulWidget {
     this.onScratchStart,
     this.onScratchUpdate,
     this.onScratchEnd,
+    this.autoScratching = false,
   }) : super(key: key);
 
   /// Widget rendered under the scratch area.
@@ -90,6 +91,9 @@ class Scratcher extends StatefulWidget {
   /// Callback called when scratching ends
   final VoidCallback? onScratchEnd;
 
+  /// when updated to true, automaticaly scratch the widget
+  final bool autoScratching;
+
   @override
   ScratcherState createState() => ScratcherState();
 }
@@ -109,6 +113,7 @@ class ScratcherState extends State<Scratcher> {
   bool canScratch = true;
   Duration? transitionDuration;
   Size? _lastKnownSize;
+  Timer? _autoScratchTimer;
 
   RenderBox? get _renderObject {
     return context.findRenderObject() as RenderBox?;
@@ -124,6 +129,20 @@ class ScratcherState extends State<Scratcher> {
     }
 
     super.initState();
+  }
+
+  @override
+  void didUpdateWidget(covariant Scratcher oldWidget) {
+    if (widget.autoScratching && _autoScratchTimer == null) {
+      autoScratch(totalDuration: const Duration(seconds: 1));
+    }
+    super.didUpdateWidget(oldWidget);
+  }
+
+  @override
+  void dispose() {
+    _autoScratchTimer?.cancel(); // Cancel the timer if active
+    super.dispose();
   }
 
   @override
@@ -348,5 +367,43 @@ class ScratcherState extends State<Scratcher> {
     });
 
     widget.onChange?.call(100);
+  }
+
+  /// Auto scratches the scratcher like the reveal methode, but with some effects.
+  void autoScratch({required Duration totalDuration}) {
+    if (progress >= 100 || isFinished) return;
+
+    _autoScratchTimer?.cancel();
+
+    const int numSteps = 100;
+    final double stepDuration = totalDuration.inMilliseconds / numSteps;
+
+    final Size size = _renderObject!.size;
+    final double xStep = size.width / sqrt(numSteps);
+    final double yStep = size.height / sqrt(numSteps);
+
+    int currentStep = 0;
+
+    _autoScratchTimer = Timer.periodic(
+        Duration(milliseconds: stepDuration.toInt()), (Timer timer) {
+      if (progress >= 100 || currentStep >= numSteps) {
+        timer.cancel();
+        return;
+      }
+
+      final int row = currentStep ~/ sqrt(numSteps);
+      final double col = currentStep % sqrt(numSteps);
+
+      final double x = col * xStep;
+      final double y = row * yStep;
+
+      _addPoint(Offset(x, y));
+
+      currentStep++;
+
+      if (progress >= 100) {
+        timer.cancel();
+      }
+    });
   }
 }
